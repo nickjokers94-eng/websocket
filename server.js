@@ -2,25 +2,51 @@ const WebSocket = require('ws');
 const http = require('http');
 const axios = require('axios');
 
+// Port für den WebSocket-Server (Nick Jokers)
 const PORT = 3000;
+// URL des Backend-Servers (Nick Jokers)
 const BACKEND_URL = 'http://localhost:8080';
+// Dauer einer Spielrunde in Sekunden (Nick Jokers)
 const ROUND_DURATION = 60;
 
+/**
+ * Klasse für den Spielzustand (Nick Jokers)
+ */
 class GameState {
+  /**
+   * Konstruktor für GameState (Nick Jokers)
+   * Initialisiert alle Variablen für das Spiel.
+   */
   constructor() {
+    // Aktuelle Runde (Nick Jokers)
     this.currentRound = null;
+    // Map mit allen Spielern (Nick Jokers)
     this.players = new Map();
+    // Aktuelle Rundennummer (Nick Jokers)
     this.roundNumber = 0;
+    // Timer für die Runde (Nick Jokers)
     this.timer = null;
+    // Verbleibende Zeit in der Runde (Nick Jokers)
     this.timeRemaining = 0;
+    // Liste aller bisherigen Versuche in der Runde (Nick Jokers)
     this.guesses = [];
+    // Lösung des letzten Wortes (Nick Jokers)
     this.lastRoundSolution = null;
+    // URL zum Backend (Nick Jokers)
     this.backendUrl = BACKEND_URL;
+    // Startzeit der aktuellen Runde (Nick Jokers)
     this.roundStartTime = null;
+    // Gesamtanzahl aller Versuche in der Runde (Nick Jokers)
     this.totalGuesses = 0;
+    // Gibt an, ob die Runde aktiv ist (Nick Jokers)
     this.roundActive = false;
   }
 
+  /**
+   * Holt ein zufälliges Wort vom Backend.
+   * @returns {Promise<string>} Das zufällige Wort in Großbuchstaben.
+   * (Nick Jokers)
+   */
   async fetchRandomWord() {
     try {
       console.log('Zufälliges Wort vom Backend abrufen...');
@@ -39,23 +65,29 @@ class GameState {
     }
   }
 
+  /**
+   * Fügt einen neuen Spieler hinzu.
+   * @param {string} username - Name des Spielers.
+   * @param {WebSocket} socket - WebSocket-Verbindung des Spielers.
+   * (Nick Jokers)
+   */
   addPlayer(username, socket) {
     if (this.players.size >= 3) {
-    socket.send(JSON.stringify({ type: 'error', message: 'Lobby ist voll! Maximal 3 Spieler erlaubt.' }));
-    socket.close();
-    return;
-  }
+      socket.send(JSON.stringify({ type: 'error', message: 'Lobby ist voll! Maximal 3 Spieler erlaubt.' }));
+      socket.close();
+      return;
+    }
     if (this.players.has(username)) {
       socket.send(JSON.stringify({ type: 'error', message: 'Benutzername ist bereits verbunden.' }));
       socket.close();
       return;
     }
     this.players.set(username, {
-      socket,
-      joinTime: Date.now(),
-      guessCount: 0,
-      totalScore: 0,
-      roundScore: 0
+      socket, // WebSocket-Verbindung (Nick Jokers)
+      joinTime: Date.now(), // Zeitpunkt des Beitritts (Nick Jokers)
+      guessCount: 0, // Anzahl der Versuche in der Runde (Nick Jokers)
+      totalScore: 0, // Gesamtscore des Spielers (Nick Jokers)
+      roundScore: 0  // Punktzahl in der aktuellen Runde (Nick Jokers)
     });
     console.log(`Spieler ${username} beigetreten. Gesamtanzahl Spieler: ${this.players.size}`);
     this.sendGameState(username);
@@ -65,6 +97,11 @@ class GameState {
     });
   }
 
+  /**
+   * Entfernt einen Spieler aus dem Spiel.
+   * @param {string} username - Name des Spielers.
+   * (Nick Jokers)
+   */
   removePlayer(username) {
     if (this.players.has(username)) {
       this.players.delete(username);
@@ -76,6 +113,11 @@ class GameState {
     }
   }
 
+  /**
+   * Sendet den aktuellen Spielstatus an einen Spieler.
+   * @param {string} username - Name des Spielers.
+   * (Nick Jokers)
+   */
   sendGameState(username) {
     const player = this.players.get(username);
     if (!player) return;
@@ -95,6 +137,11 @@ class GameState {
     this.sendToPlayer(username, gameState);
   }
 
+  /**
+   * Gibt die maximale Anzahl an Versuchen pro Spieler zurück.
+   * @returns {number} Maximale Versuche.
+   * (Nick Jokers)
+   */
   getMaxGuessesForPlayer() {
     const playerCount = this.players.size;
     if (playerCount <= 1) return 6;
@@ -102,6 +149,11 @@ class GameState {
     return 2;
   }
 
+  /**
+   * Sendet eine Nachricht an alle Spieler.
+   * @param {object} message - Die zu sendende Nachricht.
+   * (Nick Jokers)
+   */
   broadcast(message) {
     const data = JSON.stringify(message);
     this.players.forEach((player, username) => {
@@ -116,6 +168,12 @@ class GameState {
     });
   }
 
+  /**
+   * Sendet eine Nachricht an einen bestimmten Spieler.
+   * @param {string} username - Name des Spielers.
+   * @param {object} message - Die zu sendende Nachricht.
+   * (Nick Jokers)
+   */
   sendToPlayer(username, message) {
     const player = this.players.get(username);
     if (player && player.socket.readyState === WebSocket.OPEN) {
@@ -128,6 +186,10 @@ class GameState {
     }
   }
 
+  /**
+   * Startet eine neue Spielrunde.
+   * (Nick Jokers)
+   */
   async startNewRound() {
     if (this.players.size === 0) return;
     this.roundNumber++;
@@ -159,6 +221,10 @@ class GameState {
     this.startTimer();
   }
 
+  /**
+   * Startet den Rundentimer und beendet die Runde bei Ablauf.
+   * (Nick Jokers)
+   */
   startTimer() {
     if (this.timer) clearInterval(this.timer);
     this.timer = setInterval(() => {
@@ -175,7 +241,15 @@ class GameState {
     }, 1000);
   }
 
-  // Neue Punkteberechnung: Keine Trostpunkte mehr für falsche Versuche!
+  /**
+   * Berechnet die Punkte für einen Versuch.
+   * @param {object} player - Spielerobjekt.
+   * @param {number} guessNumber - Der wievielte Versuch es war.
+   * @param {number} timeUsed - Benötigte Zeit in Sekunden.
+   * @param {boolean} correct - Ob das Wort richtig erraten wurde.
+   * @returns {number} Die berechnete Punktzahl.
+   * (Nick Jokers)
+   */
   calculateScore(player, guessNumber, timeUsed, correct) {
     let score = 0;
     if (correct) {
@@ -190,6 +264,11 @@ class GameState {
     return Math.round(score);
   }
 
+  /**
+   * Beendet die aktuelle Runde und speichert ggf. die Punkte.
+   * @param {string} reason - Grund für das Rundenende.
+   * (Nick Jokers)
+   */
   async endRound(reason = 'completed') {
     if (this.timer) {
       clearInterval(this.timer);
@@ -224,6 +303,11 @@ class GameState {
     }
   }
 
+  /**
+   * Gibt die Punktestände aller Spieler zurück.
+   * @returns {object} Punktestände.
+   * (Nick Jokers)
+   */
   getPlayerScores() {
     const scores = {};
     this.players.forEach((player, username) => {
@@ -236,17 +320,22 @@ class GameState {
     return scores;
   }
 
-  // Highscore-Logik: Nur speichern, wenn neuer Score höher ist
+  /**
+   * Speichert den Highscore eines Spielers, falls er höher ist als der bisherige.
+   * @param {string} username - Name des Spielers.
+   * @param {number} score - Zu speichernder Score.
+   * (Nick Jokers)
+   */
   async savePlayerScore(username, score) {
     try {
-      // Hole aktuellen Highscore vom Backend
+      // Hole aktuellen Highscore vom Backend (Nick Jokers)
       const res = await axios.get(`${this.backendUrl}/highscores`, {
         auth: { username: 'user', password: 'passwordtest' }
       });
       const userEntry = res.data.find(entry => entry.username === username);
       const currentHighscore = userEntry ? userEntry.score : 0;
 
-      // Nur speichern, wenn neuer Score höher ist
+      // Nur speichern, wenn neuer Score höher ist (Nick Jokers)
       if (score > currentHighscore) {
         await axios.post(`${this.backendUrl}/highscores/save`,
           { username, score },
@@ -263,6 +352,13 @@ class GameState {
     }
   }
 
+  /**
+   * Fügt einen Rateversuch eines Spielers hinzu.
+   * @param {string} username - Name des Spielers.
+   * @param {string} guess - Geratenes Wort.
+   * @returns {boolean} Ob der Versuch akzeptiert wurde.
+   * (Nick Jokers)
+   */
   addGuess(username, guess) {
     const player = this.players.get(username);
     if (!player) return false;
@@ -323,6 +419,11 @@ class GameState {
     return true;
   }
 
+  /**
+   * Gibt eine Liste aller Spieler mit Status zurück.
+   * @returns {Array} Liste der Spieler.
+   * (Nick Jokers)
+   */
   getPlayerList() {
     return Array.from(this.players.entries()).map(([username, player]) => ({
       name: username,
@@ -334,6 +435,11 @@ class GameState {
     }));
   }
 
+  /**
+   * Testet die Verbindung zum Backend.
+   * @returns {Promise<boolean>} true, wenn Backend erreichbar.
+   * (Nick Jokers)
+   */
   async testBackendConnection() {
     try {
       const response = await axios.get(`${this.backendUrl}/words`, {
@@ -348,10 +454,17 @@ class GameState {
   }
 }
 
+// HTTP-Server für WebSocket (Nick Jokers)
 const server = http.createServer();
+// WebSocket-Server (Nick Jokers)
 const wss = new WebSocket.Server({ server });
+// Instanz des Spielzustands (Nick Jokers)
 const gameState = new GameState();
 
+/**
+ * Verbindungs-Handler für neue WebSocket-Clients.
+ * (Nick Jokers)
+ */
 wss.on('connection', (ws, request) => {
   let username = null;
   console.log('Neue WebSocket-Verbindung');
@@ -382,6 +495,12 @@ wss.on('connection', (ws, request) => {
   ws.username = username;
 });
 
+/**
+ * Verarbeitet Nachrichten vom Client.
+ * @param {WebSocket} socket - Die Verbindung des Clients.
+ * @param {object} message - Die empfangene Nachricht.
+ * (Nick Jokers)
+ */
 function handleClientMessage(socket, message) {
   switch (message.type) {
     case 'playerJoin':
@@ -423,6 +542,7 @@ function handleClientMessage(socket, message) {
   }
 }
 
+// Startet den Server und testet die Backend-Verbindung (Nick Jokers)
 server.listen(PORT, async () => {
   console.log(`WebSocket-Game-Server läuft auf Port ${PORT}`);
   console.log(`WebSocket-Endpunkt: ws://localhost:${PORT}`);
@@ -435,6 +555,7 @@ server.listen(PORT, async () => {
   }
 });
 
+// Beendet den Server bei SIGTERM (Nick Jokers)
 process.on('SIGTERM', () => {
   console.log('WebSocket-Server wird heruntergefahren...');
   wss.clients.forEach((client) => {
@@ -443,9 +564,11 @@ process.on('SIGTERM', () => {
   server.close();
 });
 
+// Beendet den Server bei STRG+C (Nick Jokers)
 process.on('SIGINT', () => {
   console.log('\nServer wird heruntergefahren...');
   process.exit(0);
 });
 
+// Exportiert gameState und wss für Tests oder externe Nutzung (Nick Jokers)
 module.exports = { gameState, wss };
