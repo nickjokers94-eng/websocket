@@ -40,11 +40,11 @@ class GameState {
   }
 
   addPlayer(username, socket) {
-    if (this.players.size >= 6) {
-      socket.send(JSON.stringify({ type: 'error', message: 'Lobby ist voll! Maximal 6 Spieler erlaubt.' }));
-      socket.close();
-      return;
-    }
+    if (this.players.size >= 3) {
+    socket.send(JSON.stringify({ type: 'error', message: 'Lobby ist voll! Maximal 3 Spieler erlaubt.' }));
+    socket.close();
+    return;
+  }
     if (this.players.has(username)) {
       socket.send(JSON.stringify({ type: 'error', message: 'Benutzername ist bereits verbunden.' }));
       socket.close();
